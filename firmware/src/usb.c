@@ -1,3 +1,4 @@
+#include "descriptor.h"
 #include "usb.h"
 #include <avr/interrupt.h>
 #include <avr/io.h>
@@ -105,20 +106,32 @@ ISR(USB_GEN_vect) {
 
 void send_descriptor(const uint8_t wValue, const uint8_t wIndex,
                      const uint8_t wLength) {
-  uint8_t *descriptor;
-  uint8_t descriptor_len;
+  uint8_t const * descriptor;
+  uint8_t descriptor_length;
   switch (wValue & 0xFF00) {
   case 0x0100: // Return device descriptor
+    descriptor = device_descriptor;
+    descriptor_length = pgm_read_byte(device_descriptor);
     break;
   case 0x0200: // Return the configuration descriptor
+    descriptor = configuration_descriptor;
+    descriptor_length = CONFIGURATION_DESCRIPTOR_LENGTH;
     break;
   case 0x0400: // Return the interface descriptor
+    descriptor = interface_descriptor;
+    descriptor_length = INTERFACE_DESCRIPTOR_LENGTH;
     break;
   case 0x0500: // Return the Endpoint descriptor
+    descriptor = endpoint_descriptor;
+    descriptor_length = ENDPOINT_DESCRIPTOR_LENGTH;
     break;
   case 0x2100: // Return the HID descriptor
+    descriptor = hid_descriptor;
+    descriptor_length = HID_DESCRIPTOR_LENGTH;
     break;
   case 0x2200: // Return the  report descriptor
+    descriptor = report_descriptor;
+    descriptor_length = REPORT_DESCRIPTOR_LENGTH;
     break;
   default:
     // Unexpected descriptor type.

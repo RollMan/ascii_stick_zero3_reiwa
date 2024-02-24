@@ -1,3 +1,6 @@
+#ifndef __BUTTON_H__
+#define __BUTTON_H__
+
 #define get_stick_up    (PINB & (1 << PINB4))
 #define get_stick_down  (PINB & (1 << PINB5))
 #define get_stick_left  (PINB & (1 << PINB6))
@@ -7,3 +10,5 @@
 #define get_buttons_lower (PIND)
 
 void init_buttons();
+
+#endif
