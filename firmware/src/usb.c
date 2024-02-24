@@ -1,5 +1,6 @@
-#include "descriptor.h"
 #include "usb.h"
+#include "config.h"
+#include "descriptor.h"
 #include <avr/interrupt.h>
 #include <avr/io.h>
 
@@ -11,6 +12,9 @@ const uint8_t GET_DESCRIPTOR = 0x06;
 const uint8_t SET_DESCRIPTOR = 0x07;
 const uint8_t GET_CONFIGURATION = 0x08;
 const uint8_t SET_CONFIGURATION = 0x09;
+
+const uint8_t ENDPOINT_SIZE = 32;
+const uint8_t ENDPOINT_SIZE_SEL = 0x22;
 
 typedef enum {
   G_VBUST,
@@ -58,8 +62,9 @@ void handle_udint() {
     // Activate the endpoint 0.
     UENUM = 0;
     UECONX = (1 << EPEN);
-    UECFG0X = 0;     // Control endpoint, OUT direction.
-    UECFG1X |= 0x22; // 32 byte endpoint, allocate a memory for the endpoint.
+    UECFG0X = 0;                  // Control endpoint, OUT direction.
+    UECFG1X |= ENDPOINT_SIZE_SEL; // 32 byte endpoint, allocate a memory for the
+                                  // endpoint.
 
     if (UESTA0X & (1 << CFGOK)) {
       while (1)
@@ -106,7 +111,7 @@ ISR(USB_GEN_vect) {
 
 void send_descriptor(const uint8_t wValue, const uint8_t wIndex,
                      const uint8_t wLength) {
-  uint8_t const * descriptor;
+  uint8_t const *descriptor;
   uint8_t descriptor_length;
   switch (wValue & 0xFF00) {
   case 0x0100: // Return device descriptor
@@ -137,6 +142,20 @@ void send_descriptor(const uint8_t wValue, const uint8_t wIndex,
     // Unexpected descriptor type.
     UECONX |= (1 << STALLRQ);
     break;
+  }
+  uint8_t request_length = min(255, wLength);
+  descriptor_length = min(request_length, descriptor_length);
+  while (descriptor_length > 0) {
+    while (!(UEINTX & (1 << TXINI)))
+      ;
+    UEINTX &= ~(1 << TXINI);
+    uint8_t packet_length = min(ENDPOINT_SIZE, descriptor_length);
+    for (int i = 0; i < packet_length; i++) {
+      UEDATX = pgm_read_byte(descriptor + i);
+    }
+    descriptor_length -= packet_length;
+    descriptor += packet_length;
+    UEINTX &= ~(1 << FIFOCON);
   }
 }
 
