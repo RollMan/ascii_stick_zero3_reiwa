@@ -103,27 +103,28 @@ ISR(USB_GEN_vect) {
   }
 }
 
-void send_descriptor(const uint8_t wValue, const uint8_t wIndex, const uint8_t wLength){
-    uint8_t *descriptor;
-    uint8_t descriptor_len;
-    switch(wValue & 0xFF00){
-        case 0x0100:        // Return device descriptor
-        break;
-        case 0x0200:        // Return the configuration descriptor
-        break;
-        case 0x0400:        // Return the interface descriptor
-        break;
-        case 0x0500:        // Return the Endpoint descriptor
-        break;
-        case 0x2100:        // Return the HID descriptor
-        break;
-        case 0x2200:        // Return the  report descriptor
-        break;
-        default:
-        // Unexpected descriptor type.
-        UECONX |= (1 << STALLRQ);
-        break;
-    }
+void send_descriptor(const uint8_t wValue, const uint8_t wIndex,
+                     const uint8_t wLength) {
+  uint8_t *descriptor;
+  uint8_t descriptor_len;
+  switch (wValue & 0xFF00) {
+  case 0x0100: // Return device descriptor
+    break;
+  case 0x0200: // Return the configuration descriptor
+    break;
+  case 0x0400: // Return the interface descriptor
+    break;
+  case 0x0500: // Return the Endpoint descriptor
+    break;
+  case 0x2100: // Return the HID descriptor
+    break;
+  case 0x2200: // Return the  report descriptor
+    break;
+  default:
+    // Unexpected descriptor type.
+    UECONX |= (1 << STALLRQ);
+    break;
+  }
 }
 
 void handle_control_setup() {
@@ -142,8 +143,8 @@ void handle_control_setup() {
   const uint8_t wLength_l = UEDATX;
   const uint8_t wLength_h = UEDATX;
 
-  const uint16_t wValue =  ((uint16_t)(wValue_h) << 8) | wValue_l;
-  const uint16_t wIndex =  ((uint16_t)(wIndex_h) << 8) | wIndex_l;
+  const uint16_t wValue = ((uint16_t)(wValue_h) << 8) | wValue_l;
+  const uint16_t wIndex = ((uint16_t)(wIndex_h) << 8) | wIndex_l;
   const uint16_t wLength = ((uint16_t)(wLength_h) << 8) | wLength_l;
 
   // clear RSTPI
@@ -152,55 +153,60 @@ void handle_control_setup() {
   // clear the endpoint bank
   UEINTX &= ~(1 << FIFOCON);
 
-
   UENUM = 0;
   const uint8_t recipient = bmRequestType & 0x1F;
-  if(recipient == 0x00){ // Handle a standard device request
-      switch (bRequest) {
-      case GET_STATUS:
-        while(!(UEINTX & (1 << TXINI)));        // wait for "data stage" as IN/OUT packets.
-        UEINTX &= ~(1 << TXINI);
-        UEDATX = 0x00;
-        UEDATX = 0x00;                          // no remote wakeup for device, bus-powered.
-        UEINTX &= ~(1 << FIFOCON);
-        break;
-      case CLEAR_FEATURE:
-        // Clear feature is not supported:
-        // It is not allowed to change disabled remote-wakeup and bus-powered.
-        UECONX |= (1 << STALLRQ);
-        return;
-        break;
-      case SET_FEATURE:
-        // Set feature is not supported:
-        // It is not allowed to change disabled remote-wakeup and bus-powered.
-        UECONX |= (1 << STALLRQ);
-        break;
-      case SET_ADDRESS:
-        UDADDR = wValue & ~(1 << ADDEN);
-        while(!(UEINTX & (1 << TXINI)));        // wait for "data stage" as IN/OUT packets.
-        UEINTX &= ~(1 << TXINI) & ~(1 << FIFOCON);  // send IN 0 Zero Length Packet & an ACK status.
-        UDADDR |= (1 << ADDEN);
-        break;
-      case GET_DESCRIPTOR:
-        send_descriptor(wValue, wIndex, wLength);
-        break;
-      case SET_DESCRIPTOR:
-        // Set descriptor is not supported:
-        // Follows https://github.com/kmani314/ATMega32u4-HID-Keyboard/blob/master/src/usb.c
-        UECONX |= (1 << STALLRQ);
-        break;
-      case GET_CONFIGURATION:
-        break;
-      case SET_CONFIGURATION:
-        break;
-      default:
-        // Unexpected request.
-        // Follows https://github.com/kmani314/ATMega32u4-HID-Keyboard/blob/master/src/usb.c
-        UECONX |= (1 << STALLRQ);
-        break;
-      }
-  }else if(recipient == 0x01){   // Handle a standard interface request
-  }else if(recipient == 0x02){  // Handle a standard endpoint request
+  if (recipient == 0x00) { // Handle a standard device request
+    switch (bRequest) {
+    case GET_STATUS:
+      while (!(UEINTX & (1 << TXINI)))
+        ; // wait for "data stage" as IN/OUT packets.
+      UEINTX &= ~(1 << TXINI);
+      UEDATX = 0x00;
+      UEDATX = 0x00; // no remote wakeup for device, bus-powered.
+      UEINTX &= ~(1 << FIFOCON);
+      break;
+    case CLEAR_FEATURE:
+      // Clear feature is not supported:
+      // It is not allowed to change disabled remote-wakeup and bus-powered.
+      UECONX |= (1 << STALLRQ);
+      return;
+      break;
+    case SET_FEATURE:
+      // Set feature is not supported:
+      // It is not allowed to change disabled remote-wakeup and bus-powered.
+      UECONX |= (1 << STALLRQ);
+      break;
+    case SET_ADDRESS:
+      UDADDR = wValue & ~(1 << ADDEN);
+      while (!(UEINTX & (1 << TXINI)))
+        ; // wait for "data stage" as IN/OUT packets.
+      UEINTX &=
+          ~(1 << TXINI) &
+          ~(1 << FIFOCON); // send IN 0 Zero Length Packet & an ACK status.
+      UDADDR |= (1 << ADDEN);
+      break;
+    case GET_DESCRIPTOR:
+      send_descriptor(wValue, wIndex, wLength);
+      break;
+    case SET_DESCRIPTOR:
+      // Set descriptor is not supported:
+      // Follows
+      // https://github.com/kmani314/ATMega32u4-HID-Keyboard/blob/master/src/usb.c
+      UECONX |= (1 << STALLRQ);
+      break;
+    case GET_CONFIGURATION:
+      break;
+    case SET_CONFIGURATION:
+      break;
+    default:
+      // Unexpected request.
+      // Follows
+      // https://github.com/kmani314/ATMega32u4-HID-Keyboard/blob/master/src/usb.c
+      UECONX |= (1 << STALLRQ);
+      break;
+    }
+  } else if (recipient == 0x01) { // Handle a standard interface request
+  } else if (recipient == 0x02) { // Handle a standard endpoint request
   }
 }
 
