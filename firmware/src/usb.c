@@ -158,7 +158,10 @@ void send_descriptor(const uint8_t wValue, const uint8_t wIndex,
     descriptor = device_descriptor;
     descriptor_length = pgm_read_byte(device_descriptor);
     break;
-  case 0x0200: // Return the configuration descriptor
+  case 0x0200: // Return the configuration descriptor and sub-descriptors.
+    // TODO: connect configuration descriptors and sub-descriptors.
+    // Add a wrapper to read single or connected descriptors and call it
+    // at the sending block.
     descriptor = configuration_descriptor;
     descriptor_length = CONFIGURATION_DESCRIPTOR_LENGTH;
     break;
