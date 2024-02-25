@@ -12,6 +12,17 @@ const uint8_t GET_DESCRIPTOR = 0x06;
 const uint8_t SET_DESCRIPTOR = 0x07;
 const uint8_t GET_CONFIGURATION = 0x08;
 const uint8_t SET_CONFIGURATION = 0x09;
+const uint8_t GET_INTERFACE = 0x0A;
+const uint8_t SET_INTERFACE = 0x11;
+const uint8_t SYNCH_FRAME = 0x12;
+
+// HID Reqest
+const uint8_t GET_REPORT = 0x01;
+const uint8_t GET_IDLE = 0x02;
+const uint8_t GET_PROTOCOL = 0x03;
+const uint8_t SET_REPORT = 0x09;
+const uint8_t SET_IDLE = 0x0A;
+const uint8_t SET_PROTOCOL = 0x0B;
 
 const uint8_t ENDPOINT_SIZE = 32;
 const uint8_t ENDPOINT_SIZE_SEL = 0x22;
@@ -19,6 +30,8 @@ const uint8_t ENDPOINT_SIZE_SEL = 0x22;
 const uint8_t GAMEPAD_ENDPOINT_NUM = 3;
 
 uint8_t usb_config_status;
+uint16_t usb_interface_status;
+uint16_t usb_idle_status;
 
 typedef enum {
   G_VBUST,
@@ -46,6 +59,8 @@ void send_ram_bytes(uint8_t const *const dat, uint8_t const len) {
   }
   UEINTX &= ~(1 << FIFOCON);
 }
+
+void send_stall() { UECONX |= (1 << STALLRQ); }
 
 void usb_power_on() {
   cli();
@@ -184,6 +199,10 @@ void send_descriptor(const uint8_t wValue, const uint8_t wIndex,
   }
 }
 
+void send_report(){
+    // TODO:
+}
+
 void handle_control_setup() {
   // reset STALL at SETUP PID.
   UECONX |= (1 << STALLRQC);
@@ -211,6 +230,7 @@ void handle_control_setup() {
   UEINTX &= ~(1 << FIFOCON);
 
   UENUM = 0;
+  const uint8_t request_direction = (bmRequestType & 0xC0) >> 6;
   const uint8_t request_kind = (bmRequestType & 0x30) >> 4;
   const uint8_t recipient = bmRequestType & 0x1F;
   if (request_kind == 0x00) { // Hanle any of standard requests
@@ -271,13 +291,25 @@ void handle_control_setup() {
       }
     } else if (recipient == 0x01) { // Handle a standard interface request
       if (wIndex == 0) {
-        switch (bmRequestType) {
+        switch (bRequest) {
         case GET_STATUS:
           const uint8_t dat[2] = {0x00, 0x00};
           send_ram_bytes(dat, 2);
           break;
-        case SET_FEATURE:
+        case GET_INTERFACE: {
+          const uint8_t dat[1] = {usb_interface_status};
+          send_ram_bytes(dat, 1);
+        } break;
+        case SET_CONFIGURATION:
+          if (wValue == 0) {
+            usb_interface_status = (uint8_t)wValue;
+          } else {
+            send_stall();
+          }
           break;
+        case SET_FEATURE:
+        case CLEAR_FEATURE:
+        case SYNCH_FRAME:
         default:
           UECONX |= (1 << STALLRQ);
           break;
@@ -286,7 +318,33 @@ void handle_control_setup() {
         UECONX |= (1 << STALLRQ);
       }
     } else if (recipient == 0x02) { // Handle a standard endpoint request
+      switch (bRequest) {
+      case GET_STATUS: {
+        if ((wIndex & (1 << 7)) && (wIndex & 0x0F)) {
+          const uint8_t dat[2] = {0x00, 0x00};
+          send_ram_bytes(dat, 2);
+        } else {
+          const uint8_t dat[2] = {0x00, 0x01};
+          send_ram_bytes(dat, 2);
+        }
+      } break;
+      }
     }
+  }else if(request_kind == 0x01) {  // Handle class requests.
+        if(recipient == 0x01 && wIndex == 0){      // handle a class request for interface
+            if(bRequest == GET_REPORT){
+                send_report();
+            }else if(bRequest == GET_IDLE){
+                const uint8_t dat[1] = {usb_idle_status};
+                send_ram_bytes(dat, 1);
+            }else if(bRequest == SET_IDLE){
+                usb_idle_status = wValue >> 8;
+                // const int report_id = wvalue & 0x00FFU;
+                send_zero_length_packet();
+            }
+        }else{
+            send_stall();
+        }
   }
 }
 
