@@ -16,6 +16,10 @@ const uint8_t SET_CONFIGURATION = 0x09;
 const uint8_t ENDPOINT_SIZE = 32;
 const uint8_t ENDPOINT_SIZE_SEL = 0x22;
 
+const uint8_t GAMEPAD_ENDPOINT_NUM = 3;
+
+uint8_t usb_config_status;
+
 typedef enum {
   G_VBUST,
   G_UPRSM,
@@ -25,6 +29,23 @@ typedef enum {
   G_SOFI,
   G_SUSPI,
 } genintsrc_t;
+
+void send_zero_length_packet() {
+  while (!(UEINTX & (1 << TXINI)))
+    ; // wait for "data stage" as IN/OUT packets.
+  UEINTX &= ~(1 << TXINI) &
+            ~(1 << FIFOCON); // send IN 0 Zero Length Packet & an ACK status.
+}
+
+void send_ram_bytes(uint8_t const *const dat, uint8_t const len) {
+  while (!(UEINTX & (1 << TXINI)))
+    ;
+  UEINTX &= ~(1 << TXINI);
+  for (int i = 0; i < len; i++) {
+    UEDATX = dat[i];
+  }
+  UEINTX &= ~(1 << FIFOCON);
+}
 
 void usb_power_on() {
   cli();
@@ -46,6 +67,8 @@ void usb_power_on() {
   USBCON = ((1 << USBE) | (1 << OTGPADE) | (1 << VBUSTE)) |
            (USBCON & ~(1 << FRZCLK));
   UDCON &= ~(1 << LSM);
+  usb_config_status = 0;
+
   // Wait for an interruption of USB VBUS information connection and
   // attach USB device by:
   //     UDCON &= ~(1 << DETACH);
@@ -80,7 +103,9 @@ void handle_udint() {
     // Confirm the receive-setup-packet interrupt is enabled.
     UEIENX = (1 << RXSTPE);
 
-    // TODO: wait for an interrupt of receive-setup-packet and respond the
+    usb_config_status = 0;
+
+    // wait for an interrupt of receive-setup-packet and respond the
     // device descriptor.
   }
 }
@@ -186,64 +211,95 @@ void handle_control_setup() {
   UEINTX &= ~(1 << FIFOCON);
 
   UENUM = 0;
+  const uint8_t request_kind = (bmRequestType & 0x30) >> 4;
   const uint8_t recipient = bmRequestType & 0x1F;
-  if (recipient == 0x00) { // Handle a standard device request
-    switch (bRequest) {
-    case GET_STATUS:
-      while (!(UEINTX & (1 << TXINI)))
-        ; // wait for "data stage" as IN/OUT packets.
-      UEINTX &= ~(1 << TXINI);
-      UEDATX = 0x00;
-      UEDATX = 0x00; // no remote wakeup for device, bus-powered.
-      UEINTX &= ~(1 << FIFOCON);
-      break;
-    case CLEAR_FEATURE:
-      // Clear feature is not supported:
-      // It is not allowed to change disabled remote-wakeup and bus-powered.
-      UECONX |= (1 << STALLRQ);
-      return;
-      break;
-    case SET_FEATURE:
-      // Set feature is not supported:
-      // It is not allowed to change disabled remote-wakeup and bus-powered.
-      UECONX |= (1 << STALLRQ);
-      break;
-    case SET_ADDRESS:
-      UDADDR = wValue & ~(1 << ADDEN);
-      while (!(UEINTX & (1 << TXINI)))
-        ; // wait for "data stage" as IN/OUT packets.
-      UEINTX &=
-          ~(1 << TXINI) &
-          ~(1 << FIFOCON); // send IN 0 Zero Length Packet & an ACK status.
-      UDADDR |= (1 << ADDEN);
-      break;
-    case GET_DESCRIPTOR:
-      send_descriptor(wValue, wIndex, wLength);
-      break;
-    case SET_DESCRIPTOR:
-      // Set descriptor is not supported:
-      // Follows
-      // https://github.com/kmani314/ATMega32u4-HID-Keyboard/blob/master/src/usb.c
-      UECONX |= (1 << STALLRQ);
-      break;
-    case GET_CONFIGURATION:
-      break;
-    case SET_CONFIGURATION:
-      break;
-    default:
-      // Unexpected request.
-      // Follows
-      // https://github.com/kmani314/ATMega32u4-HID-Keyboard/blob/master/src/usb.c
-      UECONX |= (1 << STALLRQ);
-      break;
+  if (request_kind == 0x00) { // Hanle any of standard requests
+    if (recipient == 0x00) {  // Handle a standard device request
+      switch (bRequest) {
+      case GET_STATUS: {
+        const uint8_t dat[2] = {0x00, 0x00};
+        send_ram_bytes(dat, 2);
+      } break;
+      case CLEAR_FEATURE:
+        // Clear feature is not supported:
+        // It is not allowed to change disabled remote-wakeup and bus-powered.
+        UECONX |= (1 << STALLRQ);
+        return;
+        break;
+      case SET_FEATURE:
+        // Set feature is not supported:
+        // It is not allowed to change disabled remote-wakeup and bus-powered.
+        UECONX |= (1 << STALLRQ);
+        break;
+      case SET_ADDRESS:
+        UDADDR = wValue & ~(1 << ADDEN);
+        send_zero_length_packet();
+        UDADDR |= (1 << ADDEN);
+        break;
+      case GET_DESCRIPTOR:
+        send_descriptor(wValue, wIndex, wLength);
+        break;
+      case SET_DESCRIPTOR:
+        // Set descriptor is not supported:
+        // This behavior follows
+        // https://github.com/kmani314/ATMega32u4-HID-Keyboard/blob/master/src/usb.c
+        UECONX |= (1 << STALLRQ);
+        break;
+      case GET_CONFIGURATION: {
+        const uint8_t dat[1] = {usb_config_status};
+        send_ram_bytes(dat, 1);
+      } break;
+      case SET_CONFIGURATION:
+        usb_config_status = (uint8_t)wValue;
+        send_zero_length_packet();
+        UENUM = GAMEPAD_ENDPOINT_NUM;
+        UECONX |= (1 << EPEN);
+        UECFG0X = (0x03 << EPTYPE0) | (1 << EPDIR);
+        UECFG1X = 0x02; // Single bank, 8 byte, allocate memory.
+        UERST = 0x1E;
+        UERST = 0;
+
+        // Enable IN interrupt for the gamepad endpoint.
+        UEIENX |= (1 << TXINE);
+        break;
+      default:
+        // Unexpected request.
+        // Follows
+        // https://github.com/kmani314/ATMega32u4-HID-Keyboard/blob/master/src/usb.c
+        UECONX |= (1 << STALLRQ);
+        break;
+      }
+    } else if (recipient == 0x01) { // Handle a standard interface request
+      if (wIndex == 0) {
+        switch (bmRequestType) {
+        case GET_STATUS:
+          const uint8_t dat[2] = {0x00, 0x00};
+          send_ram_bytes(dat, 2);
+          break;
+        case SET_FEATURE:
+          break;
+        default:
+          UECONX |= (1 << STALLRQ);
+          break;
+        }
+      } else {
+        UECONX |= (1 << STALLRQ);
+      }
+    } else if (recipient == 0x02) { // Handle a standard endpoint request
     }
-  } else if (recipient == 0x01) { // Handle a standard interface request
-  } else if (recipient == 0x02) { // Handle a standard endpoint request
   }
+}
+
+void send_gamepad_data() {
+  // TODO:
 }
 
 ISR(USB_COM_vect) {
   if (UEINTX & (1 << RXSTPI)) {
     handle_control_setup();
+  }
+  // Handle an IN request for the gamepad endpoint interrupt
+  if ((UEINT & (1 << GAMEPAD_ENDPOINT_NUM)) && (UEINTX & (1 << TXINI))) {
+    send_gamepad_data();
   }
 }
