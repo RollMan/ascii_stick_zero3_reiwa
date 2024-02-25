@@ -7,7 +7,7 @@
 # License: GNU GPL v2 (see License.txt), GNU GPL v3 or proprietary (CommercialLicense.txt)
 
 DEVICE  = atmega32u4
-F_CPU   = 1000000	# in Hz
+F_CPU   = 16000000	# in Hz
 FUSE_L  = # see below for fuse values for particular devices
 FUSE_H  = 
 AVRDUDE = avrdude -c usbasp -p $(DEVICE) # edit this line for your programmer

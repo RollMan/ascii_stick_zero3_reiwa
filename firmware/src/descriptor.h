@@ -24,7 +24,6 @@ static const uint8_t device_descriptor[] PROGMEM = {
     0x01,       // bNumConfigurations
 };
 
-static const uint8_t CONFIGURATION_DESCRIPTOR_LENGTH = 9;
 static const uint8_t configuration_descriptor[] PROGMEM = {
     0x09,       // bLength
     0x02,       // bDescriptorType
@@ -35,6 +34,8 @@ static const uint8_t configuration_descriptor[] PROGMEM = {
     0xA0,       // bmAttributes   (Bus-powered Device, Remote-Wakeup)
     0xFA,       // bMaxPower      (500 mA)
 };
+
+#define CONFIGURATION_DESCRIPTOR_SIZE (sizeof(configuration_descriptor) / sizeof(configuration_descriptor[0]))
 
 static const uint8_t INTERFACE_DESCRIPTOR_LENGTH = 9;
 static const uint8_t interface_descriptor[] PROGMEM = {
@@ -55,6 +56,13 @@ static const uint8_t interface_descriptor[] PROGMEM = {
     0x01,       // bNumDescriptors
     0x22,       // bDescriptorType[0] (HID)
     REPORT_DESCRIPTOR_SIZE, 0x00, // wDescriptorLength[0] // report descriptor length
+    // endpoint descriptor
+    7,          // bLength
+    0x05,       // bDescriptorType (ENDPOINT)
+    0x81,       // bEndpointAddressIN Endpoint : 1
+    0x03,       // bmAttributes
+    0x20, 0x00, // wMaxPacketSize
+    4,          // bInterval
 };
 
 static const uint8_t endpoint_descriptor[REPORT_DESCRIPTOR_SIZE] PROGMEM = {
@@ -66,8 +74,20 @@ static const uint8_t endpoint_descriptor[REPORT_DESCRIPTOR_SIZE] PROGMEM = {
     4,          // bInterval
 };
 
+#define ENDPOINT_DESCRIPTOR_LENGTH (7)
+
+#define CONFIGURATION_AND_SUB_DESCRIPTOR_SIZE ((sizeof(configuration_descriptor) + sizeof(endpoint_descriptor)) / sizeof(configuration_descriptor[0]))
+
 static const uint8_t HID_DESCRIPTOR_LENGTH = 9;
-static const uint8_t hid_descriptor[] PROGMEM = {};
+static const uint8_t hid_descriptor[] PROGMEM = {
+    0x09,       // bLength
+    0x21,       // bDescriptorType (HID)
+    0x11, 0x01, // bcdHID 1.11
+    0x00,       // bCountryCode
+    0x01,       // bNumDescriptors
+    0x22,       // bDescriptorType[0] (HID)
+    REPORT_DESCRIPTOR_SIZE, 0x00, // wDescriptorLength[0] // report descriptor length
+};
 
 static const uint8_t REPORT_DESCRIPTOR_LENGTH = 0;
 static const uint8_t report_descriptor[] PROGMEM = {

@@ -62,6 +62,13 @@ void send_ram_bytes(uint8_t const *const dat, uint8_t const len) {
 
 void send_stall() { UECONX |= (1 << STALLRQ); }
 
+void handle_vbus_transition() {
+  USBINT &= ~(1 << VBUSTI);
+  if (USBSTA & (1 << VBUS)) {
+    UDCON &= ~(1 << DETACH); // Attach the USB bus.
+  }
+}
+
 void usb_power_on() {
   cli();
   // Power-On USB pads regulator
@@ -87,6 +94,12 @@ void usb_power_on() {
   // Wait for an interruption of USB VBUS information connection and
   // attach USB device by:
   //     UDCON &= ~(1 << DETACH);
+
+  handle_vbus_transition();
+
+  // Enable interrupts
+  USBCON |= (1 << VBUSTE);
+  UDIEN |= (1 << EORSTE);
   sei();
 }
 
@@ -129,10 +142,7 @@ ISR(USB_GEN_vect) {
 
   // Handle the VBUS pad transition.
   if (USBINT & (1 << VBUSTI)) {
-    USBINT &= ~(1 << VBUSTI);
-    if (USBSTA & (1 << VBUS)) {
-      UDCON &= ~(1 << DETACH); // Attach the USB bus.
-    }
+    handle_vbus_transition();
   }
 
   // Handle UDINT
@@ -162,8 +172,9 @@ void send_descriptor(const uint8_t wValue, const uint8_t wIndex,
     // TODO: connect configuration descriptors and sub-descriptors.
     // Add a wrapper to read single or connected descriptors and call it
     // at the sending block.
+    // Then, separate interface_descriptor.
     descriptor = configuration_descriptor;
-    descriptor_length = CONFIGURATION_DESCRIPTOR_LENGTH;
+    descriptor_length = CONFIGURATION_DESCRIPTOR_SIZE;
     break;
   case 0x0400: // Return the interface descriptor
     descriptor = interface_descriptor;
@@ -202,15 +213,15 @@ void send_descriptor(const uint8_t wValue, const uint8_t wIndex,
   }
 }
 
-void send_report(){
-    // TODO:
+void send_report() {
+  // TODO:
 }
 
 void handle_control_setup() {
   // reset STALL at SETUP PID.
   UECONX |= (1 << STALLRQC);
   // disable interrupts of OUTI/INI to process the DATA0 in this function.
-  UEIENX &= ~(1 << RXOUTE) & ~(1 << TXINE);
+  // UEIENX &= ~(1 << RXOUTE) & ~(1 << TXINE);
 
   // begin of the setup packets
   const uint8_t bmRequestType = UEDATX;
@@ -222,15 +233,16 @@ void handle_control_setup() {
   const uint8_t wLength_l = UEDATX;
   const uint8_t wLength_h = UEDATX;
 
+  // clear the endpoint bank
+  UEINTX &= ~(1 << RXSTPI);
+  UEINTX &= ~(1 << FIFOCON);
+
   const uint16_t wValue = ((uint16_t)(wValue_h) << 8) | wValue_l;
   const uint16_t wIndex = ((uint16_t)(wIndex_h) << 8) | wIndex_l;
   const uint16_t wLength = ((uint16_t)(wLength_h) << 8) | wLength_l;
 
   // clear RSTPI
-  UEINTX &= ~(1 << RXSTPI);
 
-  // clear the endpoint bank
-  UEINTX &= ~(1 << FIFOCON);
 
   UENUM = 0;
   const uint8_t request_direction = (bmRequestType & 0xC0) >> 6;
@@ -333,21 +345,22 @@ void handle_control_setup() {
       } break;
       }
     }
-  }else if(request_kind == 0x01) {  // Handle class requests.
-        if(recipient == 0x01 && wIndex == 0){      // handle a class request for interface
-            if(bRequest == GET_REPORT){
-                send_report();
-            }else if(bRequest == GET_IDLE){
-                const uint8_t dat[1] = {usb_idle_status};
-                send_ram_bytes(dat, 1);
-            }else if(bRequest == SET_IDLE){
-                usb_idle_status = wValue >> 8;
-                // const int report_id = wvalue & 0x00FFU;
-                send_zero_length_packet();
-            }
-        }else{
-            send_stall();
-        }
+  } else if (request_kind == 0x01) { // Handle class requests.
+    if (recipient == 0x01 &&
+        wIndex == 0) { // handle a class request for interface
+      if (bRequest == GET_REPORT) {
+        send_report();
+      } else if (bRequest == GET_IDLE) {
+        const uint8_t dat[1] = {usb_idle_status};
+        send_ram_bytes(dat, 1);
+      } else if (bRequest == SET_IDLE) {
+        usb_idle_status = wValue >> 8;
+        // const int report_id = wvalue & 0x00FFU;
+        send_zero_length_packet();
+      }
+    } else {
+      send_stall();
+    }
   }
 }
 
