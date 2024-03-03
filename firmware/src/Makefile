@@ -12,7 +12,7 @@ FUSE_L  = # see below for fuse values for particular devices
 FUSE_H  = 
 AVRDUDE = avrdude -c usbasp -p $(DEVICE) # edit this line for your programmer
 
-CFLAGS  = -I. -DDEBUG_LEVEL=0
+CFLAGS  = -I. -DDEBUG_LEVEL=0 --param=min-pagesize=0
 OBJECTS = ascii_stick_zero3_reiwa.o usb.o button.o
 
 COMPILE = avr-gcc -Wall -Os -DF_CPU=$(F_CPU) $(CFLAGS) -mmcu=$(DEVICE)
