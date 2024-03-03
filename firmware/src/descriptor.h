@@ -7,45 +7,21 @@
 
 // https://gist.github.com/DJm00n/a6bbcb810879daa9354dee4a02a6b34e
 // https://www.partsnotincluded.com/understanding-the-xbox-360-wired-controllers-usb-data/
-//
-#define idVendor 0x03eb  // Atmel Corp.
-#define idProduct 0x2ff4  // ATMega32u4 DFU Bootloader (This isn't a real product so I don't
-          // have legitimate IDs)
-
 static const uint8_t device_descriptor[] PROGMEM = {
-    // Stored in PROGMEM (Program Memory) Flash, freeing up some SRAM where
-    // variables are usually stored
-    18,  // bLength - The total size of the descriptor
-    1,   // bDescriptorType - The type of descriptor - 1 is device
-    0x00,
-    0x02,  // bcdUSB - The USB protcol supported - Refer to USB 2.0
-           // Chapter 9.6.1
-    0,   // bDeviceClass - The Device Class, 0 indicating that the HID interface
-         // will specify it
-    0,   // bDeviceSubClass - 0, HID will specify
-    0,   // bDeviceProtocol - No class specific protocols on a device level, HID
-         // interface will specify
-    32,  // bMaxPacketSize0 - 32 byte packet size; control endpoint was
-         // configured in UECFG1X to be 32 bytes
-    (idVendor & 255),
-    ((idVendor >> 8) &
-     255),  // idVendor - Vendor ID specified by USB-IF (To fit the 2 bytes, the
-            // ID is split into least significant and most significant byte)
-    (idProduct & 255),
-    ((idProduct >> 8) & 255),  // idProduct - The Product ID specified by USB-IF
-                               // - Split in the same way as idVendor
-    0x00,
-    0x01,  // bcdDevice - Device Version Number
-    0,  // iManufacturer - The String Descriptor that has the manufacturer name
-        // -
-        // Specified by USB 2.0 Table 9-8
-    0,  // iProduct - The String Descriptor that has the product name -
-        // Specified
-        // by USB 2.0 Table 9-8
-    0,  // iSerialNumber - The String Descriptor that has the serial number of
-        // the product - Specified by USB 2.0 Table 9-8
-    1   // bNumConfigurations - The number of configurations of the device, most
-        // devices only have one
+    0x12,       // bLength
+    0x01,       // bDescriptorType
+    0x00, 0x02, // bcdUSB
+    0xFF,       // bDeviceClass      (Vendor specific)
+    0xFF,       // bDeviceSubClass
+    0xFF,       // bDeviceProtocol
+    32,       // bMaxPacketSize0   (32 bytes)
+    0x5E, 0x04, // idVendor
+    0x8E, 0x02, // idProduct
+    0x14, 0x01, // bcdDevice
+    0x01,       // iManufacturer
+    0x02,       // iProduct
+    0x03,       // iSerialNumber
+    0x01,       // bNumConfigurations
 };
 
 static const uint8_t configuration_descriptor[] PROGMEM = {
