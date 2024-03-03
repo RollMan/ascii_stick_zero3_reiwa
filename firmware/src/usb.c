@@ -195,7 +195,7 @@ void send_descriptor(const uint8_t wValue, const uint8_t wIndex,
   default:
     // Unexpected descriptor type.
     UECONX |= (1 << STALLRQ);
-    break;
+    return;	// do not proceed to the packet-sending procedure.
   }
   uint8_t request_length = min(255, wLength);
   descriptor_length = min(request_length, descriptor_length);
