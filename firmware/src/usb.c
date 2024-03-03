@@ -100,6 +100,7 @@ void usb_power_on() {
   // attach USB device by:
   //     UDCON &= ~(1 << DETACH);
 
+  UDCON &= ~(1 << DETACH); // Attach the USB bus.
   handle_vbus_transition();
 
   // Enable interrupts
