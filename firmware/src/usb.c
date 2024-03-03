@@ -1,7 +1,7 @@
 #include "usb.h"
 #include "config.h"
-#include "descriptor.h"
 #include "debug/fmt.h"
+#include "descriptor.h"
 #include <avr/interrupt.h>
 #include <avr/io.h>
 #include <util/delay.h>
@@ -62,8 +62,10 @@ void send_ram_bytes(uint8_t const *const dat, uint8_t const len) {
   UEINTX &= ~(1 << FIFOCON);
 }
 
-void send_stall() { UECONX |= (1 << STALLRQ);
-DEBUG_SEND_STR("sending stall");}
+void send_stall() {
+  UECONX |= (1 << STALLRQ);
+  DEBUG_SEND_STR("sending stall");
+}
 
 void handle_vbus_transition() {
   USBINT &= ~(1 << VBUSTI);
@@ -89,8 +91,8 @@ void usb_power_on() {
   USBCON |= 1 << USBE;
   // Configure USB interface (USB speed, Endpoints configuration...)
   //     Speed configuration; disable low-speed mode.
-  USBCON = ((1 << USBE) | (1 << OTGPADE) | (1 << VBUSTE)) |
-           (USBCON & ~(1 << FRZCLK));
+  USBCON |= ((1 << USBE) | (1 << OTGPADE) | (1 << VBUSTE));
+  USBCON &= ~(1 << FRZCLK);
   UDCON &= ~(1 << LSM);
   usb_config_status = 0;
 
@@ -140,7 +142,6 @@ void handle_udint() {
 
     // wait for an interrupt of receive-setup-packet and respond the
     // device descriptor.
-  } else {
   }
 }
 
@@ -212,13 +213,7 @@ void send_descriptor(const uint16_t wValue, const uint16_t wIndex,
   uint8_t request_length = min(255, wLength);
   descriptor_length = min(request_length, descriptor_length);
   while (descriptor_length > 0) {
-    while (!(UEINTX & (1 << TXINI))){
-            if(UEINTX & (1 << RXOUTI)){
-                    return;
-            }
-    }
-    if(UEINTX & (1 << RXOUTI)){
-            return;
+    while (!(UEINTX & (1 << TXINI))) {
     }
     uint8_t packet_length = min(ENDPOINT_SIZE, descriptor_length);
     for (int i = 0; i < packet_length; i++) {
@@ -241,6 +236,7 @@ void send_report() {
 }
 
 void handle_control_setup() {
+  UENUM = 0;
   // reset STALL at SETUP PID.
   UECONX |= (1 << STALLRQC);
   // disable interrupts of OUTI/INI to process the DATA0 in this function.
@@ -257,19 +253,27 @@ void handle_control_setup() {
   const uint8_t wLength_h = UEDATX;
 
   // clear the endpoint bank
-  UEINTX &= ~(1 << RXSTPI);
+  UEINTX &= ~(1 << RXSTPI) & ~(1 << RXOUTI);
   UEINTX &= ~(1 << FIFOCON);
+  DEBUG_SEND_STR("UEINTX RXOUTI reset: \r\n");
+  debug_send_hex(UEINTX);
+  DEBUG_SEND_STR("\r\n");
 
-  const uint16_t wValue =  ((uint16_t)(wValue_h) << 8) | wValue_l;
-  const uint16_t wIndex =  ((uint16_t)(wIndex_h) << 8) | wIndex_l;
+  const uint16_t wValue = ((uint16_t)(wValue_h) << 8) | wValue_l;
+  const uint16_t wIndex = ((uint16_t)(wIndex_h) << 8) | wIndex_l;
   const uint16_t wLength = ((uint16_t)(wLength_h) << 8) | wLength_l;
 
   // clear RSTPI
 
-  UENUM = 0;
   const uint8_t request_direction = (bmRequestType & 0xC0) >> 6;
   const uint8_t request_kind = (bmRequestType & 0x30) >> 4;
   const uint8_t recipient = bmRequestType & 0x1F;
+  DEBUG_SEND_STR("bmReqType bReq: ");
+  debug_send_hex(bmRequestType);
+  debug_send_byte(' ');
+  debug_send_hex(bRequest);
+  DEBUG_SEND_STR("\r\n");
+
   if (request_kind == 0x00) { // Hanle any of standard requests
     if (recipient == 0x00) {  // Handle a standard device request
       switch (bRequest) {
@@ -289,6 +293,10 @@ void handle_control_setup() {
         UECONX |= (1 << STALLRQ);
         break;
       case SET_ADDRESS:
+        DEBUG_SEND_STR("SET_ADDRESS ");
+        debug_send_hex((wValue >> 8));
+        debug_send_hex((wValue & 0xFF));
+        DEBUG_SEND_STR("\r\n");
         UDADDR = wValue & ~(1 << ADDEN);
         send_zero_length_packet();
         UDADDR |= (1 << ADDEN);
@@ -393,6 +401,8 @@ void send_gamepad_data() {
 ISR(USB_COM_vect) {
   DEBUG_SEND_STR("USB COM int:");
   debug_send_hex(UEINTX);
+  DEBUG_SEND_STR("\r\nUEINT: ");
+  debug_send_hex(UEINT);
   DEBUG_SEND_STR("\r\n");
   if (UEINTX & (1 << RXSTPI)) {
     handle_control_setup();
