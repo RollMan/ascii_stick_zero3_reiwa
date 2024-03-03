@@ -14,7 +14,7 @@ static const uint8_t device_descriptor[] PROGMEM = {
     0xFF,       // bDeviceClass      (Vendor specific)
     0xFF,       // bDeviceSubClass
     0xFF,       // bDeviceProtocol
-    0x08,       // bMaxPacketSize0   (8 bytes)
+    32,       // bMaxPacketSize0   (32 bytes)
     0x5E, 0x04, // idVendor
     0x8E, 0x02, // idProduct
     0x14, 0x01, // bcdDevice

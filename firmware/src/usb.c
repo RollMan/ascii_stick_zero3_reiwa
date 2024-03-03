@@ -1,8 +1,10 @@
 #include "usb.h"
 #include "config.h"
 #include "descriptor.h"
+#include "debug/fmt.h"
 #include <avr/interrupt.h>
 #include <avr/io.h>
+#include <util/delay.h>
 
 const uint8_t GET_STATUS = 0x00;
 const uint8_t CLEAR_FEATURE = 0x01;
@@ -60,7 +62,8 @@ void send_ram_bytes(uint8_t const *const dat, uint8_t const len) {
   UEINTX &= ~(1 << FIFOCON);
 }
 
-void send_stall() { UECONX |= (1 << STALLRQ); }
+void send_stall() { UECONX |= (1 << STALLRQ);
+DEBUG_SEND_STR("sending stall");}
 
 void handle_vbus_transition() {
   USBINT &= ~(1 << VBUSTI);
@@ -117,9 +120,11 @@ void handle_udint() {
     UECFG1X |= ENDPOINT_SIZE_SEL; // 32 byte endpoint, allocate a memory for the
                                   // endpoint.
 
-    if (UESTA0X & (1 << CFGOK)) {
-      while (1)
-        ;
+    if (!(UESTA0X & (1 << CFGOK))) {
+      while (1) {
+        DEBUG_SEND_STR("endpoint configuration failed.\r\n");
+        _delay_ms(500);
+      }
     }
 
     // Endpoint 0 is activated.
@@ -135,18 +140,24 @@ void handle_udint() {
 
     // wait for an interrupt of receive-setup-packet and respond the
     // device descriptor.
+  } else {
   }
 }
 
 ISR(USB_GEN_vect) {
+  DEBUG_SEND_STR("USB GEN int.\r\n");
 
   // Handle the VBUS pad transition.
   if (USBINT & (1 << VBUSTI)) {
+    DEBUG_SEND_STR("vbus int start.\r\n");
     handle_vbus_transition();
   }
 
   // Handle UDINT
   if (UDINT) {
+    DEBUG_SEND_STR("udint start: ");
+    debug_send_hex(UDINT);
+    DEBUG_SEND_STR("\r\n");
     /*
      *  Do NOT `return` inside this block.
      *  Otherwise, UDINT is never cleard, which
@@ -157,10 +168,11 @@ ISR(USB_GEN_vect) {
 
     UDINT = 0; // Do not forget to clear the interruption bits.
   }
+  DEBUG_SEND_STR("finish gen int.\r\n");
 }
 
-void send_descriptor(const uint8_t wValue, const uint8_t wIndex,
-                     const uint8_t wLength) {
+void send_descriptor(const uint16_t wValue, const uint16_t wIndex,
+                     const uint16_t wLength) {
   uint8_t const *descriptor;
   uint8_t descriptor_length;
   switch (wValue & 0xFF00) {
@@ -195,22 +207,33 @@ void send_descriptor(const uint8_t wValue, const uint8_t wIndex,
   default:
     // Unexpected descriptor type.
     UECONX |= (1 << STALLRQ);
-    return;	// do not proceed to the packet-sending procedure.
+    return; // do not proceed to the packet-sending procedure.
   }
   uint8_t request_length = min(255, wLength);
   descriptor_length = min(request_length, descriptor_length);
   while (descriptor_length > 0) {
-    while (!(UEINTX & (1 << TXINI)))
-      ;
-    UEINTX &= ~(1 << TXINI);
+    while (!(UEINTX & (1 << TXINI))){
+            if(UEINTX & (1 << RXOUTI)){
+                    return;
+            }
+    }
+    if(UEINTX & (1 << RXOUTI)){
+            return;
+    }
     uint8_t packet_length = min(ENDPOINT_SIZE, descriptor_length);
     for (int i = 0; i < packet_length; i++) {
-      UEDATX = pgm_read_byte(descriptor + i);
+      const uint8_t d = pgm_read_byte(descriptor + i);
+      UEDATX = d;
     }
     descriptor_length -= packet_length;
     descriptor += packet_length;
+    UEINTX &= ~(1 << TXINI);
     UEINTX &= ~(1 << FIFOCON);
   }
+  DEBUG_SEND_STR("send finish: ");
+  debug_send_hex((wValue & 0xFF00) >> 4);
+  debug_send_hex((wValue & 0x00FF));
+  DEBUG_SEND_STR("\r\n");
 }
 
 void send_report() {
@@ -237,12 +260,11 @@ void handle_control_setup() {
   UEINTX &= ~(1 << RXSTPI);
   UEINTX &= ~(1 << FIFOCON);
 
-  const uint16_t wValue = ((uint16_t)(wValue_h) << 8) | wValue_l;
-  const uint16_t wIndex = ((uint16_t)(wIndex_h) << 8) | wIndex_l;
+  const uint16_t wValue =  ((uint16_t)(wValue_h) << 8) | wValue_l;
+  const uint16_t wIndex =  ((uint16_t)(wIndex_h) << 8) | wIndex_l;
   const uint16_t wLength = ((uint16_t)(wLength_h) << 8) | wLength_l;
 
   // clear RSTPI
-
 
   UENUM = 0;
   const uint8_t request_direction = (bmRequestType & 0xC0) >> 6;
@@ -369,6 +391,9 @@ void send_gamepad_data() {
 }
 
 ISR(USB_COM_vect) {
+  DEBUG_SEND_STR("USB COM int:");
+  debug_send_hex(UEINTX);
+  DEBUG_SEND_STR("\r\n");
   if (UEINTX & (1 << RXSTPI)) {
     handle_control_setup();
   }
@@ -376,4 +401,6 @@ ISR(USB_COM_vect) {
   if ((UEINT & (1 << GAMEPAD_ENDPOINT_NUM)) && (UEINTX & (1 << TXINI))) {
     send_gamepad_data();
   }
+  UEINTX = 0;
+  DEBUG_SEND_STR("finish com int.\r\n");
 }
