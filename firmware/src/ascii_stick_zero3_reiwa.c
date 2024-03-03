@@ -5,5 +5,5 @@
 int main(void) {
   init_buttons();
   usb_power_on();
-  return 0;
+  while(1);
 }
