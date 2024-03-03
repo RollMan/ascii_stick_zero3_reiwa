@@ -9,6 +9,7 @@ int main(void){
     uint8_t cnt = 0;
     DDRB = (1 << DDB3);
     while(1){
+        DEBUG_SEND_STR("hello world!\r\n");
         debug_send_hex(cnt++);
         debug_send_byte('\r');
         debug_send_byte('\n');
