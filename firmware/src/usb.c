@@ -89,8 +89,8 @@ void usb_power_on() {
        << UVREGE); // Enable USB Regulator to use 5V power source of a USB host.
 
   // Configure PLL interface & enable PLL
-  PLLFRQ = 0x4A;
-  PLLCSR |= (1 << PINDIV) | (1 << PLLE);
+  PLLFRQ = 0xCA;
+  PLLCSR = (1 << PLLE);
   // Check PLL lock
   while (!(PLLCSR & (1 << PLOCK)))
     ;
@@ -100,7 +100,7 @@ void usb_power_on() {
   //     Speed configuration; disable low-speed mode.
   USBCON |= ((1 << USBE) | (1 << OTGPADE) | (1 << VBUSTE));
   USBCON &= ~(1 << FRZCLK);
-  UDCON &= ~(1 << LSM);
+  UDCON |= (1 << LSM);
   usb_config_status = 0;
 
   // Wait for an interruption of USB VBUS information connection and
