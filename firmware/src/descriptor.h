@@ -27,12 +27,36 @@ static const uint8_t device_descriptor[] PROGMEM = {
 static const uint8_t configuration_descriptor[] PROGMEM = {
     0x09,       // bLength
     0x02,       // bDescriptorType
-    0x00, 0x00, // wTotalLength   TODO:
+    32, 0x00, // wTotalLength   TODO:
     0x01,       // bNumInterfaces
     0x01,       // bConfigurationValue
     0x00,       // iConfiguration
     0xA0,       // bmAttributes   (Bus-powered Device, Remote-Wakeup)
     0xFA,       // bMaxPower      (500 mA)
+    9,    // bLength
+    0x04, // bDescriptorType     (INTERFACE)
+    0,    // bInterfaceNumber
+    0,    // bAlternateSetting
+    1,    // bNumEndpoints
+    0xFF, // bInterfaceClass     (Vendor Specific)
+    0x5D, // bInterfaceSubClass
+    0x01, // bInterfaceProtocol
+    0,    // iInterface
+    // another unknown (probably hid) descriptor
+    0x09,       // bLength
+    0x21,       // bDescriptorType (HID)
+    0x11, 0x01, // bcdHID 1.11
+    0x00,       // bCountryCode
+    0x01,       // bNumDescriptors
+    0x22,       // bDescriptorType[0] (HID)
+    REPORT_DESCRIPTOR_SIZE, 0x00, // wDescriptorLength[0] // report descriptor length
+    // endpoint descriptor
+    7,          // bLength
+    0x05,       // bDescriptorType (ENDPOINT)
+    0x81,       // bEndpointAddressIN Endpoint : 1
+    0x03,       // bmAttributes
+    0x20, 0x00, // wMaxPacketSize
+    4,          // bInterval
 };
 
 #define CONFIGURATION_DESCRIPTOR_SIZE (sizeof(configuration_descriptor) / sizeof(configuration_descriptor[0]))
@@ -43,7 +67,7 @@ static const uint8_t interface_descriptor[] PROGMEM = {
     0x04, // bDescriptorType     (INTERFACE)
     0,    // bInterfaceNumber
     0,    // bAlternateSetting
-    2,    // bNumEndpoints
+    1,    // bNumEndpoints
     0xFF, // bInterfaceClass     (Vendor Specific)
     0x5D, // bInterfaceSubClass
     0x01, // bInterfaceProtocol

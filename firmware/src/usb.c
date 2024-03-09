@@ -29,7 +29,7 @@ const uint8_t SET_PROTOCOL = 0x0B;
 const uint8_t ENDPOINT_SIZE = 32;
 const uint8_t ENDPOINT_SIZE_SEL = 0x22;
 
-const uint8_t GAMEPAD_ENDPOINT_NUM = 3;
+const uint8_t GAMEPAD_ENDPOINT_NUM = 1;
 
 uint8_t usb_config_status;
 uint16_t usb_interface_status;
@@ -60,6 +60,13 @@ void send_ram_bytes(uint8_t const *const dat, uint8_t const len) {
     UEDATX = dat[i];
   }
   UEINTX &= ~(1 << FIFOCON);
+}
+
+uint8_t yield_configuration_descriptor_with_children(const uint8_t idx){
+    if(CONFIGURATION_DESCRIPTOR_SIZE < idx){
+        return pgm_read_byte(configuration_descriptor + idx);
+    }else if(CONFIGURATION_DESCRIPTOR_SIZE <= idx && idx < INTERFACE_DESCRIPTOR_LENGTH){
+    }
 }
 
 void send_stall() {
@@ -274,6 +281,12 @@ void handle_control_setup() {
   debug_send_byte(' ');
   debug_send_hex(bRequest);
   DEBUG_SEND_STR("\r\n");
+  /*
+  if(bRequest == GET_DESCRIPTOR){
+      send_descriptor(wValue, wIndex, wLength);
+      return;
+  }
+  */
 
   if (request_kind == 0x00) { // Hanle any of standard requests
     if (recipient == 0x00) {  // Handle a standard device request
